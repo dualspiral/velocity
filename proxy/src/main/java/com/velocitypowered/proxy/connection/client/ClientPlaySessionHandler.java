@@ -161,7 +161,7 @@ public class ClientPlaySessionHandler implements MinecraftSessionHandler {
     VelocityServerConnection serverConn = player.getConnectedServer();
     MinecraftConnection backendConn = serverConn != null ? serverConn.getConnection() : null;
     if (serverConn != null && backendConn != null) {
-      if (backendConn.getState() == StateRegistry.PLAY) {
+      if (backendConn.getState() != StateRegistry.PLAY) {
         // A packet somehow got through at the wrong moment. We'll log it for now,
         // but then discard it as it's likely to be from the connection from the
         // old server (mods should not know what the new mod set is until the PLAY
