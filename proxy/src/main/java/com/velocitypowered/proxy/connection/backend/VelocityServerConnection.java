@@ -35,10 +35,14 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class VelocityServerConnection implements MinecraftConnectionAssociation, ServerConnection {
 
+  private static final Logger logger = LogManager.getLogger(VelocityServerConnection.class);
   private final VelocityRegisteredServer registeredServer;
   private final ConnectedPlayer proxyPlayer;
   private final VelocityServer server;
@@ -185,6 +189,16 @@ public class VelocityServerConnection implements MinecraftConnectionAssociation,
     MinecraftConnection mc = connection;
     if (mc == null) {
       throw new IllegalStateException("Not connected to a server!");
+    }
+
+    if (mc.getState() != StateRegistry.PLAY) {
+      // A packet somehow got through at the wrong moment. We'll log it for now,
+      // but then discard it as it's likely to be from the connection from the
+      // old server (mods should not know what the new mod set is until the PLAY
+      // phase anyway, so will be working on the old server pretence)
+      logger.warn("Attempted to send plugin message packet with ID \"{}\" on {}",
+              identifier.getId(), toString());
+      return false;
     }
 
     PluginMessage message = new PluginMessage();
