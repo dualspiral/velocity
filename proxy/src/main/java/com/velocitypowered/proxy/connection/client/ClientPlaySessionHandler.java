@@ -12,6 +12,7 @@ import com.velocitypowered.proxy.connection.forge.ForgeConstants;
 import com.velocitypowered.proxy.connection.forge.ForgeUtil;
 import com.velocitypowered.proxy.protocol.MinecraftPacket;
 import com.velocitypowered.proxy.protocol.ProtocolConstants;
+import com.velocitypowered.proxy.protocol.StateRegistry;
 import com.velocitypowered.proxy.protocol.packet.BossBar;
 import com.velocitypowered.proxy.protocol.packet.Chat;
 import com.velocitypowered.proxy.protocol.packet.ClientSettings;
@@ -159,7 +160,7 @@ public class ClientPlaySessionHandler implements MinecraftSessionHandler {
   public boolean handle(PluginMessage packet) {
     VelocityServerConnection serverConn = player.getConnectedServer();
     MinecraftConnection backendConn = serverConn != null ? serverConn.getConnection() : null;
-    if (serverConn != null && backendConn != null) {
+    if (serverConn != null && backendConn != null && backendConn.getState() == StateRegistry.PLAY) {
       if (PluginMessageUtil.isMCRegister(packet)) {
         List<String> actuallyRegistered = new ArrayList<>();
         List<String> channels = PluginMessageUtil.getChannels(packet);
