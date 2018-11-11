@@ -192,13 +192,8 @@ public class VelocityServerConnection implements MinecraftConnectionAssociation,
     }
 
     if (mc.getState() != StateRegistry.PLAY) {
-      // A packet somehow got through at the wrong moment. We'll log it for now,
-      // but then discard it as it's likely to be from the connection from the
-      // old server (mods should not know what the new mod set is until the PLAY
-      // phase anyway, so will be working on the old server pretence)
-      logger.warn("Attempted to send plugin message packet with ID \"{}\" on {}",
-              identifier.getId(), toString());
-      return false;
+      // Can't send a packet right now, server has not entered PLAY state.
+      throw new IllegalStateException("Connected server has not completed login yet!");
     }
 
     PluginMessage message = new PluginMessage();

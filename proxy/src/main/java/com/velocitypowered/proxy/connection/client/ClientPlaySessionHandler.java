@@ -160,8 +160,15 @@ public class ClientPlaySessionHandler implements MinecraftSessionHandler {
   public boolean handle(PluginMessage packet) {
     VelocityServerConnection serverConn = player.getConnectedServer();
     MinecraftConnection backendConn = serverConn != null ? serverConn.getConnection() : null;
-    if (serverConn != null && backendConn != null && backendConn.getState() == StateRegistry.PLAY) {
-      if (PluginMessageUtil.isMCRegister(packet)) {
+    if (serverConn != null && backendConn != null) {
+      if (backendConn.getState() == StateRegistry.PLAY) {
+        // A packet somehow got through at the wrong moment. We'll log it for now,
+        // but then discard it as it's likely to be from the connection from the
+        // old server (mods should not know what the new mod set is until the PLAY
+        // phase anyway, so will be working on the old server pretence)
+        logger.warn("Attempted to send a plugin message with ID {} before target server entered the "
+                + "PLAY state. The packet has been discarded.", packet.getChannel());
+      } else if (PluginMessageUtil.isMCRegister(packet)) {
         List<String> actuallyRegistered = new ArrayList<>();
         List<String> channels = PluginMessageUtil.getChannels(packet);
         for (String channel : channels) {
@@ -175,7 +182,7 @@ public class ClientPlaySessionHandler implements MinecraftSessionHandler {
 
         if (!actuallyRegistered.isEmpty()) {
           PluginMessage newRegisterPacket = PluginMessageUtil.constructChannelsPacket(backendConn
-              .getProtocolVersion(), actuallyRegistered);
+                  .getProtocolVersion(), actuallyRegistered);
           backendConn.write(newRegisterPacket);
         }
       } else if (PluginMessageUtil.isMCUnregister(packet)) {
@@ -208,9 +215,9 @@ public class ClientPlaySessionHandler implements MinecraftSessionHandler {
           backendConn.write(packet);
         } else {
           PluginMessageEvent event = new PluginMessageEvent(player, serverConn, id,
-              packet.getData());
+                  packet.getData());
           server.getEventManager().fire(event).thenAcceptAsync(pme -> backendConn.write(packet),
-              backendConn.eventLoop());
+                  backendConn.eventLoop());
         }
       }
     }
