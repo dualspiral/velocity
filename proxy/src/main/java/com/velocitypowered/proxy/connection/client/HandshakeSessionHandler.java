@@ -30,11 +30,15 @@ import java.util.Optional;
 import net.kyori.text.TextComponent;
 import net.kyori.text.TranslatableComponent;
 import net.kyori.text.format.TextColor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class HandshakeSessionHandler implements MinecraftSessionHandler {
 
   private final MinecraftConnection connection;
   private final VelocityServer server;
+
+  private static final Logger logger = LogManager.getLogger(HandshakeSessionHandler.class);
 
   public HandshakeSessionHandler(MinecraftConnection connection, VelocityServer server) {
     this.connection = Preconditions.checkNotNull(connection, "connection");
@@ -82,6 +86,9 @@ public class HandshakeSessionHandler implements MinecraftSessionHandler {
         connection.setSessionHandler(new StatusSessionHandler(server, connection, ic));
         return true;
       case StateRegistry.LOGIN_ID:
+        logger.info("-------");
+        logger.info("Incoming login handshake: {}", handshake.getServerAddress());
+        logger.info("Protocol version: {}", handshake.getProtocolVersion());
         connection.setState(StateRegistry.LOGIN);
         connection.setProtocolVersion(handshake.getProtocolVersion());
 
@@ -98,8 +105,10 @@ public class HandshakeSessionHandler implements MinecraftSessionHandler {
           return true;
         }
 
+        logger.info("Starting Forge check...");
         ConnectionType type = checkForForge(handshake);
         connection.setType(type);
+        logger.info("Detected client type: {}", type.getClass().getSimpleName());
 
         // Make sure legacy forwarding is not in use on this connection.
         if (!type.checkServerAddressIsValid(handshake.getServerAddress())) {
@@ -107,6 +116,8 @@ public class HandshakeSessionHandler implements MinecraftSessionHandler {
               .create(TextComponent.of("Running Velocity behind Velocity is unsupported.")));
           return true;
         }
+
+        logger.info("Hostname is OK.");
 
         // If the proxy is configured for modern forwarding, we must deny connections from 1.12.2
         // and lower, otherwise IP information will never get forwarded.
@@ -119,6 +130,7 @@ public class HandshakeSessionHandler implements MinecraftSessionHandler {
 
         server.getEventManager().fireAndForget(new ConnectionHandshakeEvent(ic));
         connection.setSessionHandler(new LoginSessionHandler(server, connection, ic));
+        logger.info("Transition to LOGIN.");
         return true;
       default:
         throw new IllegalArgumentException("Invalid state " + handshake.getNextStatus());

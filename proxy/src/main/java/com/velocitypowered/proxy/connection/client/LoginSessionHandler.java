@@ -71,6 +71,7 @@ public class LoginSessionHandler implements MinecraftSessionHandler {
 
   @Override
   public boolean handle(ServerLogin packet) {
+    logger.info("ServerLogin has started.");
     this.login = packet;
     if (inbound.getProtocolVersion().compareTo(MINECRAFT_1_13) >= 0) {
       playerInfoId = ThreadLocalRandom.current().nextInt();
@@ -173,6 +174,7 @@ public class LoginSessionHandler implements MinecraftSessionHandler {
     if (login == null) {
       throw new IllegalStateException("No ServerLogin packet received yet.");
     }
+    logger.info("Firing PreLogin.");
     PreLoginEvent event = new PreLoginEvent(apiInbound, login.getUsername());
     server.getEventManager().fire(event)
         .thenRunAsync(() -> {
@@ -188,14 +190,17 @@ public class LoginSessionHandler implements MinecraftSessionHandler {
             return;
           }
 
+          logger.info("PreLogin not cancelled. Continuing.");
           if (!result.isForceOfflineMode() && (server.getConfiguration().isOnlineMode() || result
               .isOnlineModeAllowed())) {
             // Request encryption.
             EncryptionRequest request = generateEncryptionRequest();
             this.verify = Arrays.copyOf(request.getVerifyToken(), 4);
             inbound.write(request);
+            logger.info("EncryptionRequest sent.");
           } else {
             initializePlayer(GameProfile.forOfflinePlayer(login.getUsername()), false);
+            logger.info("Offline Player init complete.");
           }
         }, inbound.eventLoop());
   }
@@ -212,28 +217,34 @@ public class LoginSessionHandler implements MinecraftSessionHandler {
 
   private void initializePlayer(GameProfile profile, boolean onlineMode) {
     // Some connection types may need to alter the game profile.
+    logger.info("Altering GameProfile (if required).");
     profile = inbound.getType().addGameProfileTokensIfRequired(profile,
         server.getConfiguration().getPlayerInfoForwardingMode());
     GameProfileRequestEvent profileRequestEvent = new GameProfileRequestEvent(apiInbound, profile,
         onlineMode);
 
+    logger.info("Firing GameProfileRequestEvent.");
     server.getEventManager().fire(profileRequestEvent).thenCompose(profileEvent -> {
       // Initiate a regular connection and move over to it.
       ConnectedPlayer player = new ConnectedPlayer(server, profileEvent.getGameProfile(), inbound,
           apiInbound.getVirtualHost().orElse(null));
+      logger.info("ConnectedPlayer created.");
       this.connectedPlayer = player;
 
       if (!server.registerConnection(player)) {
+        logger.info("Player is already connected.");
         player.disconnect(VelocityMessages.ALREADY_CONNECTED);
         return CompletableFuture.completedFuture(null);
       }
 
+      logger.info("Firing permission setup event.");
       return server.getEventManager()
           .fire(new PermissionsSetupEvent(player, ConnectedPlayer.DEFAULT_PERMISSIONS))
           .thenCompose(event -> {
             // wait for permissions to load, then set the players permission function
             player.setPermissionFunction(event.createFunction(player));
             // then call & wait for the login event
+            logger.info("Firing login event.");
             return server.getEventManager().fire(new LoginEvent(player));
           })
           // then complete the connection
@@ -245,6 +256,7 @@ public class LoginSessionHandler implements MinecraftSessionHandler {
 
             Optional<Component> reason = event.getResult().getReason();
             if (reason.isPresent()) {
+              logger.info("Player disconnected after login event: {}.", reason.get());
               player.disconnect(reason.get());
             } else {
               finishLogin(player);
@@ -255,18 +267,22 @@ public class LoginSessionHandler implements MinecraftSessionHandler {
   }
 
   private void finishLogin(ConnectedPlayer player) {
+    logger.info("Starting connection to server.");
     Optional<RegisteredServer> toTry = player.getNextServerToTry();
     if (!toTry.isPresent()) {
+      logger.info("Unable to find a server to connect to.");
       player.disconnect(VelocityMessages.NO_AVAILABLE_SERVERS);
       return;
     }
 
+    logger.info("Sending compression threshold.");
     int threshold = server.getConfiguration().getCompressionThreshold();
     if (threshold >= 0) {
       inbound.write(new SetCompression(threshold));
       inbound.setCompressionThreshold(threshold);
     }
 
+    logger.info("Sending server login success.");
     ServerLoginSuccess success = new ServerLoginSuccess();
     success.setUsername(player.getUsername());
     success.setUuid(player.getUniqueId());
