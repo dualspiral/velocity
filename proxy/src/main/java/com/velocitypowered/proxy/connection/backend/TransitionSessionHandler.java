@@ -1,6 +1,7 @@
 package com.velocitypowered.proxy.connection.backend;
 
 import static com.velocitypowered.proxy.connection.backend.BackendConnectionPhases.IN_TRANSITION;
+import static com.velocitypowered.proxy.connection.forge.legacy.LegacyForgeHandshakeBackendPhase.COMPLETE;
 import static com.velocitypowered.proxy.connection.forge.legacy.LegacyForgeHandshakeBackendPhase.HELLO;
 
 import com.velocitypowered.api.event.player.ServerConnectedEvent;
@@ -133,8 +134,18 @@ public class TransitionSessionHandler implements MinecraftSessionHandler {
       return true;
     }
 
-    serverConn.getPlayer().getMinecraftConnection().write(packet);
-    return false;
+    if (serverConn.getPhase() == COMPLETE) {
+      // It is possible that other mods will start sending data
+      // before JoinGame. In this case, forward the packet to the
+      // server.
+      serverConn.ensureConnected().write(packet);
+    } else {
+      // Else, send it on to the previous server
+      serverConn.getPlayer().getMinecraftConnection().write(packet);
+    }
+
+    // We handled it
+    return true;
   }
 
   @Override
